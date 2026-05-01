@@ -2,6 +2,16 @@ from fastapi import FastAPI, Depends, HTTPException
 import models, schemas
 from database import get_db
 from fastapi.middleware.cors import CORSMiddleware
+from database import engine
+from sqlalchemy import text
+from fastapi.responses import FileResponse
+
+
+with engine.connect() as conn:
+    conn.execute(text("CREATE SCHEMA IF NOT EXISTS todo_table"))
+    conn.commit()
+
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
@@ -13,10 +23,10 @@ app.add_middleware(
     allow_headers=["*"], # Разрешает все заголовки
 )
 
-
 @app.get("/")
-def read_root():
-    return {"Hello":"TODO!"}
+async def read_index():
+    return FileResponse("index.html")
+
 
 @app.get("/tasks")
 def get_tasks(db = Depends(get_db)):

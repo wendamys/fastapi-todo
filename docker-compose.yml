@@ -1,8 +1,27 @@
 services:
+  # Блок базы данных — она скачается и запустится сама
+  db:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123
+      POSTGRES_DB: Todo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Блок твоего приложения
   app:
     build: .
     ports:
       - "8000:8000"
+    depends_on:
+      - db
     environment:
-      # host.docker.internal позволяет контейнеру увидеть базу на твоем Mac/PC
-      - DATABASE_URL=postgresql://postgres:123@host.docker.internal:5432/Todo
+      # Обрати внимание: здесь адрес 'db' (имя сервиса выше)
+      - DATABASE_URL=postgresql://postgres:123@db:5432/Todo
+
+volumes:
+  postgres_data:
