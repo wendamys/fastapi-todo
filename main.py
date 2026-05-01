@@ -1,76 +1,62 @@
-import json
-import os
-from datetime import datetime
-from typing import Optional
-
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import FastAPI, Depends, HTTPException
+import models, schemas
+from database import get_db
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-DB_FILE = "data.json"
-
-
-def load_db():
-    if not os.path.exists(DB_FILE):
-        return {1: {"name": "Screwdriver", "price": 10.5, "is_offer": None}}
-    with open(DB_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
-        return {int(k): v for k, v in data.items()}
-
-
-def save_db():
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(fake_db, f, indent=4, ensure_ascii=False, default=str)
-
-
-fake_db = load_db()
-
-
-class Item(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100)
-    price: float = Field(..., gt=0, description="Цена должна быть больше нуля")
-    is_offer: Optional[bool] = None
-    created_at: datetime = Field(default_factory=datetime.now)
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Разрешает запросы со всех адресов
+    allow_credentials=True,
+    allow_methods=["*"], # Разрешает все методы (GET, POST и т.д.)
+    allow_headers=["*"], # Разрешает все заголовки
+)
 
 
 @app.get("/")
 def read_root():
-    return {"Hello": "World"}
+    return {"Hello":"TODO!"}
+
+@app.get("/tasks")
+def get_tasks(db = Depends(get_db)):
+    tasks = db.query(models.Task).all()
+    return tasks
+
+@app.post("/tasks")
+def create_task(task: schemas.TaskCreate, db = Depends(get_db)):
+    new_task = models.Task(name=task.name)
+    db.add(new_task)
+    db.commit()
+    db.refresh(new_task)
+    return new_task
+
+@app.delete("/tasks/{task_id}")
+def delete_task(task_id: int, db = Depends(get_db)):
+    task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    db.delete(task)
+    db.commit()
+    return {"status": "success"}
+
+@app.put("/tasks/{task_id}")
+def update_task(task_id: int, task :schemas.TaskCreate, db = Depends(get_db)):
+    db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if db_task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # db_task.name = task.name
+    # db_task.is_completed = task.is_completed
+
+    update_data = task.model_dump()
+
+    for key, value in update_data.items():
+        setattr(db_task, key, value)
+
+    db.commit()
+    db.refresh(db_task)
+    return db_task
 
 
-@app.get("/items/{item_id}")
-def read_time(item_id: int):
-    item = fake_db.get(item_id)
-    if not item:
-        raise HTTPException(status_code=404, detail="Item not found")
-    save_db()
-    return item
 
-
-@app.put("/items/{item_id}")
-def update_item(item_id: int, item: Item):
-    if item_id not in fake_db:
-        raise HTTPException(status_code=404, detail="Item not found")
-
-    fake_db[item_id] = item.model_dump()
-    save_db()
-    return {"message": "Успешно обновлено", "item": fake_db[item_id]}
-
-
-@app.post("/items")
-def add_item(item: Item):
-    uniq_id = max(fake_db.keys(), default=0) + 1
-    fake_db[uniq_id] = item.model_dump()
-    save_db()
-    return {"id": uniq_id, **fake_db[uniq_id]}
-
-
-@app.delete("/items/{item_id}")
-def delete_item(item_id: int):
-    if item_id not in fake_db:
-        raise HTTPException(status_code=404, detail="Item not found (delete)")
-    fake_db.pop(item_id)
-    save_db()
-    return {"message": "Deleted"}

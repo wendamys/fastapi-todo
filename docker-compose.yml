@@ -1,0 +1,8 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # host.docker.internal позволяет контейнеру увидеть базу на твоем Mac/PC
+      - DATABASE_URL=postgresql://postgres:123@host.docker.internal:5432/Todo
