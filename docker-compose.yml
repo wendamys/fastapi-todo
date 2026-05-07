@@ -1,27 +1,39 @@
+version: '3.8'
+
 services:
-  # Блок базы данных — она скачается и запустится сама
-  db:
+  # База данных второго проекта
+  db-todo:
     image: postgres:15
+    container_name: todo_db
     restart: always
+    networks:
+      - kafka-net
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 123
       POSTGRES_DB: Todo
     ports:
-      - "5432:5432"
+      - "5433:5432" # Внешний порт изменен на 5433, чтобы не было конфликта с первой БД
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - todo_postgres_data:/var/lib/postgresql/data
 
-  # Блок твоего приложения
+  # Твое второе приложение (Консьюмер)
   app:
     build: .
+    container_name: todo_app
+    networks:
+      - kafka-net
     ports:
-      - "8000:8000"
+      - "8001:8000" # Внешний порт 8001, так как 8000 уже занят первым проектом
     depends_on:
-      - db
+      - db-todo
     environment:
-      # Обрати внимание: здесь адрес 'db' (имя сервиса выше)
-      - DATABASE_URL=postgresql://postgres:123@db:5432/Todo
+      - DATABASE_URL=postgresql://postgres:123@db-todo:5432/Todo
+      - KAFKA_URL=kafka:9092 # Адрес Кафки из первого проекта
+
+networks:
+  kafka-net:
+    external: true
 
 volumes:
-  postgres_data:
+  todo_postgres_data:
